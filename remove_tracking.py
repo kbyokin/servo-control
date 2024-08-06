@@ -12,8 +12,10 @@ from control_motors import ServoControl
 picam2, output = initialize_camera()
 servo_motors = ServoControl()
 
-az, alt = 20, 30
+az, alt = 100, 62
 fov_h, fov_v = 95, 72
+servo_motors.set_angles(az, alt)
+
 
 api_url = "http://172.23.161.109:8300/detect_grape_bunch"
 
@@ -38,15 +40,69 @@ def detect_via_api(api_url, image_bytes, predict_remove=False):
             return None
     except Exception as e:
         raise Exception
+    
+def angular_distance(x_c, x_t, fov, im_dim):
+    degree_per_pixel = fov / im_dim
+    angle_target = (x_c - x_t) * degree_per_pixel
+    return angle_target
+
+remove_to_im = []
+# remove_box = []
+remove_id = None
+remove_id_xyxy = []
+berries_depth = []
 
 try:
     while True:
         byte_image = get_frame(output)
-        servo_motors.set_angles(az, alt)
         pred = detect_via_api(api_url, byte_image, predict_remove=True)
         image = byte_to_np_array(byte_image, save_img=False)
-        print(f'image shape: {image.shape}')
-        print(pred)
+        im_h, im_w = image.shape[:2]
+        im_center = (int(im_w/2), int(im_h/2))
+        # print(f'image shape: {image.shape}')
+        # print(pred)
+        
+        update_threshold = 50
+        if pred is not None:
+            bunch_boxes = np.array(pred['bunch'])
+            berry_boxes = np.array(pred['berry'])
+            remove_box = np.array(pred['remove'])
+            
+            # To update removing berry based on threadhold value
+            # initialize remove_id
+            if remove_id is None and len(remove_box) > 0:
+                remove_id = int(remove_box[4])
+            elif remove_to_im != [] and (abs(remove_to_im[0]) < update_threshold) and (abs(remove_to_im[1]) < update_threshold):
+                # update remove_id
+                # remove_id = int(remove_box[4])
+                pass
+            
+            if len(bunch_boxes) > 0:
+                bunch_center = (int((bunch_boxes[0] + bunch_boxes[2]) / 2), int((bunch_boxes[1] + bunch_boxes[3]) / 2))
+                
+                if len(remove_box) > 0 and len(berry_boxes) > 0:
+                    berry_id = berry_boxes[:, 4]
+                    remove_indice = berry_id == remove_id
+                    if not remove_indice.any():
+                        # set new remove_id when the current remove_id is not in the list
+                        remove_id = remove_box[4]
+                        # print('Remove not found')
+                    else:
+                        remove_id_xyxy = berry_boxes[remove_indice][0]
+                        remove_center = (int((remove_id_xyxy[0] + remove_id_xyxy[2]) / 2), int((remove_id_xyxy[1] + remove_id_xyxy[3]) / 2))
+                        cv2.rectangle(image, (int(remove_id_xyxy[0]), int(remove_id_xyxy[1])), (int(remove_id_xyxy[2]), int(remove_id_xyxy[3])), (255, 0, 0) if remove_to_im != [] and (abs(remove_to_im[0]) < update_threshold) and (abs(remove_to_im[1]) < update_threshold) else (0, 0, 255), 2)
+                        print(fov_h, im_w)
+                        horizontal_angle = angular_distance(im_center[0], bunch_center[0], fov_h, im_w)
+                        vertical_angle = angular_distance(im_center[1], bunch_center[1], fov_v, im_h)
+                        print(f'horizontal_angle: {horizontal_angle}, vertical_angle: {vertical_angle}')
+                        az = az + horizontal_angle
+                        alt = alt + vertical_angle
+                        servo_motors.set_angles(az, alt)
+                        print(az, alt)
+        
+                        cv2.circle(image, bunch_center, 3, (0, 0, 255), -1)          
+        cv2.circle(image, (int(im_w/2), int(im_h/2)), 3, (0, 0, 255), -1)          
+        cv2.imwrite('captured_image.jpg', image)
 
 except Exception as e:
     print("An error occurred:", e)

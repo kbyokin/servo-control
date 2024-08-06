@@ -17,11 +17,11 @@ class ServoControl():
         self.pwm.set_PWM_frequency(self.ALT_PIN, 50)
     
     def angle_to_pulse_width(self, angle):
-        return int(500 + (2400 - 500) * angle / 180)
+        return int(500 + (2500 - 500) * angle / 180)
 
     def set_angles(self, az_angle, alt_angle):
-        az_pw = self.angle_to_pulse_width(az_angle)
-        alt_pw = self.angle_to_pulse_width(alt_angle)
+        az_pw = self.angle_to_pulse_width(int(az_angle))
+        alt_pw = self.angle_to_pulse_width(int(alt_angle))
         
         self.pwm.set_servo_pulsewidth(self.AZ_PIN, az_pw)
         self.pwm.set_servo_pulsewidth(self.ALT_PIN, alt_pw)
