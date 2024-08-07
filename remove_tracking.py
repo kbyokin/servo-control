@@ -57,6 +57,7 @@ try:
         byte_image = get_frame(output)
         pred = detect_via_api(api_url, byte_image, predict_remove=True)
         image = byte_to_np_array(byte_image, save_img=False)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         im_h, im_w = image.shape[:2]
         im_center = (int(im_w/2), int(im_h/2))
         # print(f'image shape: {image.shape}')
@@ -91,14 +92,23 @@ try:
                         remove_id_xyxy = berry_boxes[remove_indice][0]
                         remove_center = (int((remove_id_xyxy[0] + remove_id_xyxy[2]) / 2), int((remove_id_xyxy[1] + remove_id_xyxy[3]) / 2))
                         cv2.rectangle(image, (int(remove_id_xyxy[0]), int(remove_id_xyxy[1])), (int(remove_id_xyxy[2]), int(remove_id_xyxy[3])), (255, 0, 0) if remove_to_im != [] and (abs(remove_to_im[0]) < update_threshold) and (abs(remove_to_im[1]) < update_threshold) else (0, 0, 255), 2)
-                        print(fov_h, im_w)
-                        horizontal_angle = angular_distance(im_center[0], bunch_center[0], fov_h, im_w)
-                        vertical_angle = angular_distance(im_center[1], bunch_center[1], fov_v, im_h)
+                        horizontal_angle = angular_distance(im_center[0], remove_center[0], fov_h, im_w)
+                        vertical_angle = angular_distance(im_center[1], remove_center[1], fov_v, im_h)
                         print(f'horizontal_angle: {horizontal_angle}, vertical_angle: {vertical_angle}')
+                        print(az, alt)
                         az = az + horizontal_angle
                         alt = alt + vertical_angle
+                        if az < 30:
+                            az = 30
+                        elif az > 140:
+                            az = 140
+                        
+                        if alt < 30:
+                            alt = 30
+                        elif alt > 140:
+                            alt = 140
+                            
                         servo_motors.set_angles(az, alt)
-                        print(az, alt)
         
                         cv2.circle(image, bunch_center, 3, (0, 0, 255), -1)          
         cv2.circle(image, (int(im_w/2), int(im_h/2)), 3, (0, 0, 255), -1)          
