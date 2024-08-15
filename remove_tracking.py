@@ -5,7 +5,8 @@ import requests
 import json
 from PIL import Image
 import numpy as np
-import signal
+import datetime
+import csv
 from contextlib import contextmanager
 
 sys.path.append('./')
@@ -53,21 +54,33 @@ def angular_distance(x_c, x_t, fov, im_dim):
     angle_target = (x_c - x_t) * degree_per_pixel
     return angle_target
 
+def open_new_csv_file():
+    global file_name, writer
+    file_name = './tracking_data/' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_data.csv"
+    file = open(file_name, 'a', newline='')
+    fieldnames = ["id", "im_w", "im_h", "im_x", "im_y", "obj_x", "obj_y", 'obj_w', 'obj_h', "berry_size", "az", "alt", "dx", "dy"]
+    writer = csv.DictWriter(file, fieldnames=fieldnames)
+    writer.writeheader()
+    return file
+
 def main_loop():
     api_url = "http://172.23.161.109:8300/detect_grape_bunch"
     az, alt = 90, 80
     fov_h, fov_v = 95, 72
-    laser_offset_h = 2
+    laser_offset_h = 5
     laser_offset_v = 2
     remove_to_im = []
     remove_id = None
     remove_id_xyxy = []
     berries_depth = []
+    
+    file = open_new_csv_file()
 
     with managed_resources() as (picam2, output, servo_motors):
         servo_motors.set_angles(az, alt)
         try:
             while True:
+                id = datetime.datetime.now().__str__()
                 byte_image = get_frame(output)
                 pred = detect_via_api(api_url, byte_image, predict_remove=True)
                 image = byte_to_np_array(byte_image, save_img=False)
@@ -106,7 +119,7 @@ def main_loop():
                                 print(f'horizontal_angle: {horizontal_angle}, vertical_angle: {vertical_angle}')
                                 print(az, alt)
                                 az = az - horizontal_angle - laser_offset_h
-                                alt = alt + vertical_angle
+                                alt = alt + vertical_angle + laser_offset_v
                                 if az < 30:
                                     az = 30
                                 elif az > 140:
@@ -124,8 +137,28 @@ def main_loop():
                                     servo_motors.set_laser(0)
                                 print(remove_to_im)
                                 # cv2.circle(image, bunch_center, 3, (0, 0, 255), -1)
-                cv2.circle(image, (int(im_w / 2), int(im_h / 2)), 3, (0, 0, 255), -1)
+                                
+                                new_row = {
+                                    "id": id,
+                                    "im_w": im_w,
+                                    "im_h": im_h,
+                                    "im_x": im_center[0],
+                                    "im_y": im_center[1],
+                                    "obj_x": remove_center[0],
+                                    "obj_y": remove_center[1],
+                                    'obj_w': remove_id_xyxy[2] - remove_id_xyxy[0],
+                                    'obj_h': remove_id_xyxy[3] - remove_id_xyxy[1],
+                                    "berry_size": (remove_id_xyxy[2] - remove_id_xyxy[0]) * (remove_id_xyxy[3] - remove_id_xyxy[1]),
+                                    "az": az,
+                                    "alt": alt,
+                                    "dx": remove_to_im[0],
+                                    "dy": remove_to_im[1]
+                                }
+                                writer.writerow(new_row)
+                # cv2.circle(image, (int(im_w / 2), int(im_h / 2)), 3, (0, 0, 255), -1)
                 cv2.imwrite('captured_image.jpg', image)
+                
+                
 
         except Exception as e:
             print(f"An error occurred in main loop: {e}")
