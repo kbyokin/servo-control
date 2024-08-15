@@ -55,8 +55,10 @@ def angular_distance(x_c, x_t, fov, im_dim):
 
 def main_loop():
     api_url = "http://172.23.161.109:8300/detect_grape_bunch"
-    az, alt = 100, 62
+    az, alt = 90, 80
     fov_h, fov_v = 95, 72
+    laser_offset_h = 2
+    laser_offset_v = 2
     remove_to_im = []
     remove_id = None
     remove_id_xyxy = []
@@ -96,11 +98,14 @@ def main_loop():
                                 remove_id_xyxy = berry_boxes[remove_indice][0]
                                 remove_center = (int((remove_id_xyxy[0] + remove_id_xyxy[2]) / 2), int((remove_id_xyxy[1] + remove_id_xyxy[3]) / 2))
                                 cv2.rectangle(image, (int(remove_id_xyxy[0]), int(remove_id_xyxy[1])), (int(remove_id_xyxy[2]), int(remove_id_xyxy[3])), (255, 0, 0) if remove_to_im and (abs(remove_to_im[0]) < update_threshold) and (abs(remove_to_im[1]) < update_threshold) else (0, 0, 255), 2)
+                                
+                                remove_to_im = (im_center[0] - remove_center[0], im_center[1] - remove_center[1])
+                                
                                 horizontal_angle = angular_distance(im_center[0], remove_center[0], fov_h, im_w)
                                 vertical_angle = angular_distance(im_center[1], remove_center[1], fov_v, im_h)
                                 print(f'horizontal_angle: {horizontal_angle}, vertical_angle: {vertical_angle}')
                                 print(az, alt)
-                                az = az + horizontal_angle
+                                az = az - horizontal_angle - laser_offset_h
                                 alt = alt + vertical_angle
                                 if az < 30:
                                     az = 30
@@ -113,10 +118,15 @@ def main_loop():
                                     alt = 140
 
                                 servo_motors.set_angles(az, alt)
-
-                                cv2.circle(image, bunch_center, 3, (0, 0, 255), -1)
+                                if remove_to_im and (abs(remove_to_im[0]) < update_threshold) and (abs(remove_to_im[1]) < update_threshold):
+                                    servo_motors.set_laser(1)
+                                else:
+                                    servo_motors.set_laser(0)
+                                print(remove_to_im)
+                                # cv2.circle(image, bunch_center, 3, (0, 0, 255), -1)
                 cv2.circle(image, (int(im_w / 2), int(im_h / 2)), 3, (0, 0, 255), -1)
                 cv2.imwrite('captured_image.jpg', image)
+
         except Exception as e:
             print(f"An error occurred in main loop: {e}")
 
