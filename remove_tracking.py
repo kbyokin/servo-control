@@ -67,7 +67,7 @@ def main_loop():
     api_url = "http://172.23.161.109:8300/detect_grape_bunch"
     az, alt = 90, 80
     fov_h, fov_v = 95, 72
-    laser_offset_h = 5
+    laser_offset_h = 3
     laser_offset_v = 2
     remove_to_im = []
     remove_id = None
@@ -107,6 +107,8 @@ def main_loop():
                             remove_indice = berry_id == remove_id
                             if not remove_indice.any():
                                 remove_id = remove_box[4]
+                                file.close()
+                                file = open_new_csv_file()
                             else:
                                 remove_id_xyxy = berry_boxes[remove_indice][0]
                                 remove_center = (int((remove_id_xyxy[0] + remove_id_xyxy[2]) / 2), int((remove_id_xyxy[1] + remove_id_xyxy[3]) / 2))
