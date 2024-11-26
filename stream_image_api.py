@@ -56,6 +56,29 @@ def detect_via_api(api_url, image_bytes, predict_remove=False):
     except Exception as e:
         print(f"Exception in detect_via_api: {e}")
         return None
+    
+@app.route('/snapshot')
+def snapshot():
+    api_url = "https://grape-headset-api.ai-8lab.com/detect_grape_bunch"
+    servo_motors = ServoControl()
+    servo_motors.set_angles(state.az, state.alt)
+    
+    def generate_stream():
+        while True:
+            # Capture a frame from Picamera2
+            frame = picam2.capture_array()
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Encode frame to JPEG
+            _, buffer = cv2.imencode('.jpg', rgb_frame)
+            frame_bytes = buffer.tobytes()
+            
+            # Yield frame for the MJPEG stream
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+    # Return the MJPEG stream response
+    return Response(generate_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/stream')
 def stream():
@@ -76,10 +99,11 @@ def stream():
             # Call the API with the current frame
             pred = detect_via_api(api_url, frame_bytes, predict_remove=True)
             print(pred)  # Debugging: print API prediction
-            bunch_xyxy = pred['bunch']
+            
+            bunch_xyxy = pred.get('bunch', None)
             im_h, im_w, = frame.shape[:2]
             im_center = (int(im_w / 2), int(im_h / 2))
-            if len(bunch_xyxy) > 0:
+            if len(bunch_xyxy) != 0:
                 distancee = (im_center[0] - bunch_xyxy[0], im_center[1] - bunch_xyxy[1])
                 
                 horizontal_angle = angular_distance(im_center[0], bunch_xyxy[0], state.fov_h, im_w)
