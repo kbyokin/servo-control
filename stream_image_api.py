@@ -60,32 +60,24 @@ def detect_via_api(api_url, image_bytes, predict_remove=False):
 @app.route('/snapshot')
 def snapshot():
     api_url = "https://grape-headset-api.ai-8lab.com/detect_grape_bunch"
-    servo_motors = ServoControl()
-    servo_motors.set_angles(state.az, state.alt)
+    state.servo_motors.set_angles(state.az, state.alt)
     
-    def generate_stream():
-        while True:
-            # Capture a frame from Picamera2
-            frame = picam2.capture_array()
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Encode frame to JPEG
-            _, buffer = cv2.imencode('.jpg', rgb_frame)
-            frame_bytes = buffer.tobytes()
-            
-            # Yield frame for the MJPEG stream
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            break
-
-    # Return the MJPEG stream response
-    return Response(generate_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    """Capture a single snapshot and return it as a JPEG."""
+    # Capture a frame from Picamera2
+    frame = picam2.capture_array()
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+    # Encode the frame to JPEG
+    _, buffer = cv2.imencode('.jpg', rgb_frame)
+    frame_bytes = buffer.tobytes()
+    
+    # Return the JPEG image as a response
+    return Response(frame_bytes, mimetype='image/jpeg')
 
 @app.route('/stream')
 def stream():
     api_url = "https://grape-headset-api.ai-8lab.com/detect_grape_bunch"
-    servo_motors = ServoControl()
-    servo_motors.set_angles(state.az, state.alt)
+    state.servo_motors.set_angles(state.az, state.alt)
     
     def generate_stream():
         while True:
