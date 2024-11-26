@@ -76,6 +76,7 @@ def snapshot():
             # Yield frame for the MJPEG stream
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            break
 
     # Return the MJPEG stream response
     return Response(generate_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
