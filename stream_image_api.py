@@ -74,6 +74,58 @@ def snapshot():
     # Return the JPEG image as a response
     return Response(frame_bytes, mimetype='image/jpeg')
 
+@app.route('/usb_stream')
+def usb_stream():
+    def generate_frames():
+        """Stream frames from the USB camera."""
+        cap = cv2.VideoCapture(0)
+        
+        # Set camera properties
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        try:
+            if not cap.isOpened():
+                print("Error: Could not open camera.")
+                return
+
+            while True:
+                ret, frame = cap.read()
+                if ret:
+                    print(f"Frame captured successfully. Shape: {frame.shape}")
+                    _, buffer = cv2.imencode('.jpg', frame)
+                    frame_bytes = buffer.tobytes()
+                    yield (b'--frame\r\n'
+                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                else:
+                    print("Error: Could not read frame.")
+                    break
+                    
+        except Exception as e:
+            print(f"Camera error: {str(e)}")
+        finally:
+            cap.release()
+            
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/test_camera')
+def test_camera():
+    """Test endpoint to verify camera access"""
+    cap = cv2.VideoCapture(0)
+    
+    if not cap.isOpened():
+        return "Error: Could not open camera", 500
+        
+    ret, frame = cap.read()
+    cap.release()
+    
+    if ret:
+        cv2.imwrite('test_frame.jpg', frame)
+        return "Camera test successful - frame saved", 200
+    else:
+        return "Error: Could not read frame", 500
+
 @app.route('/stream')
 def stream():
     api_url = "https://grape-headset-api.ai-8lab.com/detect_grape_bunch"
@@ -97,17 +149,18 @@ def stream():
             im_h, im_w, = frame.shape[:2]
             im_center = (int(im_w / 2), int(im_h / 2))
             if len(bunch_xyxy) != 0:
-                distancee = (im_center[0] - bunch_xyxy[0], im_center[1] - bunch_xyxy[1])
+                bunch_center = ((bunch_xyxy[0] + bunch_xyxy[2]) / 2, (bunch_xyxy[1] + bunch_xyxy[3]) / 2)
+                
                 
                 horizontal_angle = angular_distance(im_center[0], bunch_xyxy[0], state.fov_h, im_w)
                 vertical_angle = angular_distance(im_center[1], bunch_xyxy[1], state.fov_v, im_h)
                 calculate_az = state.az - horizontal_angle
                 calculate_alt = state.alt + vertical_angle
-                state.az = np.clip(calculate_az, 30, 160)
-                state.alt = np.clip(calculate_alt, 30, 160)
+                state.az = np.clip(calculate_az, 30, 140)
+                state.alt = np.clip(calculate_alt, 30, 120)
                 
                 
-                servo_motors.set_angles(state.az, state.alt)
+                state.servo_motors.set_angles(state.az, state.alt)
             
             # Yield frame for the MJPEG stream
             yield (b'--frame\r\n'
