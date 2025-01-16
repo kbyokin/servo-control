@@ -45,7 +45,8 @@ def detect_via_api(api_url, image_bytes, predict_remove=False):
         print(f"Exception in detect_via_api: {e}")
         return None
 
-api_url = "https://grape-headset-api.ai-8lab.com/detect_grape_bunch"
+# api_url = "https://grape-headset-api.ai-8lab.com/detect_grape_bunch"
+api_url = "http://172.23.161.109:8300/detect_grape_bunch"
 state.servo_motors.set_angles(state.az, state.alt)
 
 while True:
