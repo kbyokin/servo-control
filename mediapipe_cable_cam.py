@@ -93,27 +93,40 @@ while True:
     classes = np.array(classes)
     print(classes)
     bunch_idx = np.where(classes == 'bunch')[0]
-    print(bunch_idx)
+    berry_idx = np.where(classes == 'berry')
     if len(bunch_idx) == 0:
         print(f"{time.time()}: Bunch not found")
         # cv2.circle(rgb_frame, im_center, 10, (0, 0, 255), 2)
         cv2.imwrite('captured_image.jpg', rgb_frame)
         continue
     bunch_bounding_box = detected_objects[int(bunch_idx[0])].bounding_box
+    if len(berry_idx) > 0:
+        print(berry_idx[0])
+        berry_boxes = [
+            [
+                detected_objects[index].bounding_box.origin_x,  # x1
+                detected_objects[index].bounding_box.origin_y,  # y1
+                detected_objects[index].bounding_box.origin_x + detected_objects[index].bounding_box.width,  # x2
+                detected_objects[index].bounding_box.origin_y + detected_objects[index].bounding_box.height  # y2
+            ]
+            for index in berry_idx[0]
+        ]
+        for box in berry_boxes:
+            cv2.rectangle(rgb_frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0) , 2)
     bunch_center = calculate_center(bunch_bounding_box)
-    print(f'bunch_center: {bunch_center}')
-    print(f'im_center: {im_center}')
+    # print(f'bunch_center: {bunch_center}')
+    # print(f'im_center: {im_center}')
     
     # distancee = (im_center[0] - bunch_xyxy[0], im_center[1] - bunch_xyxy[1])
     
     horizontal_angle = angular_distance(im_center[0], bunch_center[0], state.fov_h, im_w)
     vertical_angle = angular_distance(im_center[1], bunch_center[1], state.fov_v, im_h)
-    print(f'horizontal_angle: {horizontal_angle}, vertical_angle: {vertical_angle}')
+    # print(f'horizontal_angle: {horizontal_angle}, vertical_angle: {vertical_angle}')
     calculate_az = state.az - horizontal_angle
     calculate_alt = state.alt + vertical_angle
     state.az = np.clip(calculate_az, 30, 120)
     state.alt = np.clip(calculate_alt, 30, 120) - 7
-    print(f'calculate angle az:{int(calculate_az)}, alt:{int(calculate_alt)}')
+    # print(f'calculate angle az:{int(calculate_az)}, alt:{int(calculate_alt)}')
     
     state.servo_motors.set_angles(state.az, state.alt)
     print('---------------------------')
